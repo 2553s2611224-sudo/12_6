@@ -160,12 +160,16 @@ st.markdown("---")
 
 t1, t2, t3 = st.tabs(["🗺️ 위험 지도 & 세이프 루트", "🔥 시간대별 히트맵", "🤖 AI 경호 리포트"])
 
+# 지도 레이어 속성 추가 (오류 해결)
+ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+TILES = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+
 with t1:
     m_col, i_col = st.columns([3, 2])
     
     with m_col:
         st.subheader("📍 실시간 감지 지도")
-        m = folium.Map(location=[vip_lat, vip_lng], zoom_start=16, tiles="cartodbpositrondarkmatter")
+        m = folium.Map(location=[vip_lat, vip_lng], zoom_start=16, tiles=TILES, attr=ATTR)
         
         folium.Marker(
             [vip_lat, vip_lng],
@@ -250,7 +254,7 @@ with t2:
         h_weights = np.random.uniform(0.3, 1.0, pts)
         
         heat_data = list(zip(h_lats, h_lngs, h_weights))
-        hm = folium.Map(location=[BASE_LAT, BASE_LNG], zoom_start=15, tiles="cartodbpositrondarkmatter")
+        hm = folium.Map(location=[BASE_LAT, BASE_LNG], zoom_start=15, tiles=TILES, attr=ATTR)
         HeatMap(heat_data, radius=15, blur=10, max_zoom=1).add_to(hm)
         st_folium(hm, width="100%", height=400, key="heat_map")
 
