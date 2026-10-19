@@ -172,4 +172,92 @@ with t1:
             popup="VIP 차량",
             tooltip="VIP 차량",
             icon=folium.Icon(color="blue", icon="car", prefix="fa")
-        ).add_to(
+        ).add_to(m)
+        
+        folium.Circle(
+            location=[vip_lat, vip_lng],
+            radius=100,
+            color="cyan",
+            weight=1.5,
+            fill=True,
+            fill_opacity=0.1
+        ).add_to(m)
+
+        for s in st.session_state.spots:
+            folium.Marker(
+                [s["lat"], s["lng"]],
+                popup=f"<b>{s['name']}</b><br>유형: {s['type']}",
+                tooltip=f"[{s['level']}] {s['name']}",
+                icon=folium.Icon(color=s["color"], icon="exclamation-triangle", prefix="fa")
+            ).add_to(m)
+            folium.Circle(
+                location=[s["lat"], s["lng"]],
+                radius=40,
+                color=s["color"],
+                fill=True,
+                fill_opacity=0.3
+            ).add_to(m)
+
+        safe_dest = [vip_lat - 0.003, vip_lng - 0.003]
+        safe_line = [
+            [vip_lat, vip_lng],
+            [vip_lat - 0.001, vip_lng - 0.0005],
+            [vip_lat - 0.002, vip_lng - 0.002],
+            safe_dest
+        ]
+        folium.PolyLine(
+            safe_line,
+            color="#00FF7F",
+            weight=5,
+            opacity=0.8,
+            dash_array="10",
+            tooltip="🟢 추천 세이프 루트"
+        ).add_to(m)
+        
+        folium.Marker(
+            safe_dest,
+            popup="비공개 지하 주차장 B3",
+            tooltip="🔒 세이프존 (지하 엘리베이터)",
+            icon=folium.Icon(color="green", icon="shield", prefix="fa")
+        ).add_to(m)
+
+        st_folium(m, width="100%", height=450, key="sec_map")
+
+    with i_col:
+        st.subheader("🛡️ 세이프 루트 안내")
+        st.info("🚨 **회피 구역**: 청담동 대로변 & 정문 로비")
+        st.success("🟢 **우회 동선**: 건물 뒷골목 B구역 ➔ 비공개 지하 주차장 B3")
+        
+        st.subheader("📡 감지 및 제보 로그")
+        log_box = st.container(height=230)
+        with log_box:
+            for l in st.session_state.logs:
+                st.write(l)
+
+with t2:
+    st.subheader("📊 과거 누적 출몰 히트맵")
+    h_col1, h_col2 = st.columns([1, 3])
+    
+    with h_col1:
+        sel_hour = st.slider("시간대 (시)", 0, 23, 18)
+        st.write(f"선택 시간: **{sel_hour:02d}:00**")
+    
+    with h_col2:
+        np.random.seed(sel_hour)
+        pts = 40 + (sel_hour % 6) * 15
+        h_lats = np.random.normal(BASE_LAT, 0.003, pts)
+        h_lngs = np.random.normal(BASE_LNG, 0.003, pts)
+        h_weights = np.random.uniform(0.3, 1.0, pts)
+        
+        heat_data = list(zip(h_lats, h_lngs, h_weights))
+        hm = folium.Map(location=[BASE_LAT, BASE_LNG], zoom_start=15, tiles="cartodbpositrondarkmatter")
+        HeatMap(heat_data, radius=15, blur=10, max_zoom=1).add_to(hm)
+        st_folium(hm, width="100%", height=400, key="heat_map")
+
+with t3:
+    st.subheader("🤖 Gemini AI 경호 브리핑")
+    if st.button("✨ Gemini AI 브리핑 리포트 생성"):
+        with st.spinner("AI 분석 중..."):
+            rep = get_ai_report(st.session_state.spots, vip_lat, vip_lng, min_dist)
+            st.markdown("---")
+            st.markdown(rep)
