@@ -1,218 +1,392 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
-import plotly.express as px
-import time
-import os
-import google.generativeai as genai
 
-# -----------------------------------------------------------------------------
-# 1. 페이지 기본 설정 및 스타일 지정
-# -----------------------------------------------------------------------------
+import streamlit as st
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 st.set_page_config(
-    page_title="Paparazzi Escape - VIP 경호 관제",
-    page_icon="🚨",
+    page_title="SHIELD | 연예인 경호 관제",
+    page_icon="🛡️",
     layout="wide",
-    initial_sidebar_state="expanded"
 )
 
-# 다크 모드 스타일 custom CSS
+KST = ZoneInfo("Asia/Seoul")
+
+# -----------------------------
+# 디자인
+# -----------------------------
 st.markdown("""
 <style>
-    .main-title {
-        color: #FF4B4B;
-        font-size: 2.2rem;
-        font-weight: bold;
-        margin-bottom: 0px;
-    }
-    .sub-title {
-        color: #FAFAFA;
-        font-size: 1.1rem;
-        margin-bottom: 20px;
-    }
-    .alert-card {
-        background-color: #2b1113;
-        border: 1px solid #ff4b4b;
-        padding: 15px;
-        border-radius: 10px;
-        margin-bottom: 15px;
-    }
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap');
+
+.stApp {
+    background: #0b1018;
+    color: #edf4fc;
+    font-family: 'Noto Sans KR', sans-serif;
+}
+.block-container {
+    max-width: 1450px;
+    padding-top: 2rem;
+}
+section[data-testid="stSidebar"] {
+    background: #111b28;
+}
+.hero {
+    background: linear-gradient(120deg, #192b43, #101925);
+    border: 1px solid #2a3b50;
+    border-radius: 18px;
+    padding: 25px;
+    margin-bottom: 22px;
+}
+.hero h1 {
+    color: #f4f8ff;
+    font-size: 2.2rem;
+    margin: 8px 0;
+}
+.eyebrow {
+    color: #6fe4c2;
+    letter-spacing: 3px;
+    font-size: 12px;
+    font-weight: bold;
+}
+.muted {
+    color: #98abc1;
+}
+.metric {
+    background: #111b28;
+    border: 1px solid #29394d;
+    border-radius: 15px;
+    padding: 18px;
+    min-height: 115px;
+}
+.metric-label {
+    color: #9bacc0;
+    font-size: 13px;
+}
+.metric-value {
+    font-size: 28px;
+    font-weight: 800;
+    margin-top: 8px;
+    color: #f2f7fc;
+}
+.panel {
+    background: #111b28;
+    border: 1px solid #29394d;
+    border-radius: 15px;
+    padding: 20px;
+    margin: 10px 0;
+}
+.status-safe { color: #6fe4c2; font-weight: bold; }
+.status-warn { color: #ffd782; font-weight: bold; }
+.status-danger { color: #ff9292; font-weight: bold; }
+div.stButton > button {
+    border-radius: 10px;
+    min-height: 43px;
+    font-weight: 700;
+}
 </style>
 """, unsafe_allow_html=True)
 
-# -----------------------------------------------------------------------------
-# 2. Gemini API 설정 (secrets 및 환경 변수 안전 처리)
-# -----------------------------------------------------------------------------
-api_key = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
-
-ai_enabled = False
-if api_key:
-    try:
-        genai.configure(api_key=api_key)
-        # 요구사항에 명시된 gemini-2.5-flash-lite 사용
-        model = genai.GenerativeModel('gemini-2.5-flash-lite')
-        ai_enabled = True
-    except Exception as e:
-        st.warning(f"Gemini API 설정 중 오류가 발생했습니다: {e}")
-else:
-    st.info("💡 API 키가 등록되지 않아 기본 시나리오 모드로 작동합니다. AI 기능을 이용하려면 Secrets에 GEMINI_API_KEY를 등록하세요.")
-
-# -----------------------------------------------------------------------------
-# 3. 사이드바 - 관제 설정 및 상태 선택
-# -----------------------------------------------------------------------------
-st.sidebar.image("https://img.icons8.com/emoji/96/000000/police-car-light.png", width=70)
-st.sidebar.title("VIP 관제 센터")
-
-vip_name = st.sidebar.text_input("VIP 아티스트 이름", value="강해린 (Star)")
-threat_level = st.sidebar.selectbox("현재 위협 단계", ["⚠️ 경계 (Caution)", "🚨 심각 (Danger)", "🟢 안전 (Clear)"], index=1)
-paparazzi_count = st.sidebar.slider("포착된 파파라치 수", min_value=1, max_value=20, value=7)
-escort_team = st.sidebar.selectbox("배치된 경호팀", ["Alpha 팀 (차량 2대)", "Bravo 팀 (오토바이 3대)", "Charlie 팀 (지상/헬기)"])
-
-st.sidebar.markdown("---")
-if st.sidebar.button("🔄 실시간 위협 위치 레이더 갱신"):
-    st.rerun()
-
-# -----------------------------------------------------------------------------
-# 4. 메인 화면 - 헤더 및 상태 메트릭
-# -----------------------------------------------------------------------------
-st.markdown(f"<div class='main-title'>🚨 VIP [{vip_name}] 실시간 경호 관제 센터</div>", unsafe_allow_html=True)
-st.markdown("<div class='sub-title'>파파라치 추적 추적 및 실시간 대피 상황 종합 대시보드</div>", unsafe_allow_html=True)
-
-col1, col2, col3, col4 = st.columns(4)
-
-with col1:
-    st.metric(label="현재 상태", value=threat_level.split()[1], delta="- 위협 수준 고조" if "심각" in threat_level else "안정")
-with col2:
-    st.metric(label="추적 중인 파파라치", value=f"{paparazzi_count} 기", delta=f"+{np.random.randint(1, 3)}기 접근 중", delta_color="inverse")
-with col3:
-    st.metric(label="경호팀 도착 예정 시간", value="1분 30초", delta="-30초 단축")
-with col4:
-    st.metric(label="최적 대피로 확보율", value="78%", delta="12%")
-
-st.markdown("---")
-
-# -----------------------------------------------------------------------------
-# 5. 메인 레이아웃: 파파라치 지도 시각화 & 실시간 제어
-# -----------------------------------------------------------------------------
-left_col, right_col = st.columns([7, 5])
-
-with left_col:
-    st.subheader("📡 실시간 파파라치 추적 레이더 지도")
-    
-    # 가상의 GPS 데이터 생성 (VIP, 파파라치, 경호원)
-    np.random.seed(42)
-    
-    # VIP 위치 (중심)
-    vip_lat, vip_lon = 37.5665, 126.9780
-    
-    # 파파라치 위치 (VIP 주변 임의 산출)
-    p_lats = vip_lat + np.random.uniform(-0.008, 0.008, paparazzi_count)
-    p_lons = vip_lon + np.random.uniform(-0.008, 0.008, paparazzi_count)
-    
-    # 경호원 위치
-    e_lats = vip_lat + np.random.uniform(-0.003, 0.003, 3)
-    e_lons = vip_lon + np.random.uniform(-0.003, 0.003, 3)
-    
-    df_map = pd.DataFrame({
-        '위도': np.concatenate([[vip_lat], p_lats, e_lats]),
-        '경도': np.concatenate([[vip_lon], p_lons, e_lons]),
-        '구분': ['VIP 차량'] + [f'파파라치 {i+1}' for i in range(paparazzi_count)] + [f'경호팀 {i+1}' for i in range(3)],
-        '위험도': [100] + list(np.random.randint(60, 95, paparazzi_count)) + [10]*3,
-        '크기': [25] + [15]*paparazzi_count + [18]*3
-    })
-    
-    fig = px.scatter_mapbox(
-        df_map,
-        lat="위도",
-        lon="경도",
-        color="구분",
-        size="크기",
-        hover_name="구분",
-        color_discrete_map={
-            'VIP 차량': '#00FF66',
-            '경호팀 1': '#00BFFF', '경호팀 2': '#00BFFF', '경호팀 3': '#00BFFF',
-        },
-        zoom=14,
-        height=420
-    )
-    
-    fig.update_layout(
-        mapbox_style="carto-darkmatter",
-        margin={"r":0, "t":0, "l":0, "b":0},
-        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
-
-    # 긴급 현장 액션 버튼
-    act_col1, act_col2, act_col3 = st.columns(3)
-    with act_col1:
-        if st.button("🚨 경호팀 긴급 사이렌 작동"):
-            st.warning("경호 차량 경고음 발상 및 도로 우선 확보 요청을 완료했습니다!")
-    with act_col2:
-        if st.button("💨 플래시 교란탄 연막 스위치"):
-            st.success("차량 후방 교란 플래시 발사! 파파라치 시야가 5초간 차단됩니다.")
-    with act_col3:
-        if st.button("📞 112 경찰 긴급 출동 신고"):
-            st.error("관할 경찰서에 스토킹 및 과속 위협 행위로 신고 접수되었습니다.")
-
-with right_col:
-    st.subheader("🛡️ AI 위기 대응 및 대피 가이드")
-    
-    tab1, tab2 = st.tabs(["🛣️ AI 탈출 경로 추천", "📝 언론 대응 긴급 성명서"])
-    
-    with tab1:
-        st.write("현재 도로 상황 및 파파라치 분포도를 기반으로 최적 대피 경로를 산출합니다.")
-        
-        prompt_route = f"연예인 {vip_name}이(가) 현재 파파라치 차량 {paparazzi_count}대에 둘러싸여 쫓기고 있습니다. 위협 수준은 {threat_level}입니다. 연예인이 파파라치를 따돌리고 안전하게 피신할 수 있는 3가지 긴급 대피 전략(예: 지하 주차장 이용, 백화점 내부 이동, 매니저 차량 교대 등)을 신속하게 불렛포인트로 제시해주세요."
-        
-        if st.button("🤖 AI 탈출 경로 실시간 생성"):
-            if ai_enabled:
-                with st.spinner("AI가 파파라치 회피 경로 분석 중..."):
-                    try:
-                        response = model.generate_content(prompt_route)
-                        st.markdown(response.text)
-                    except Exception as e:
-                        st.error(f"AI 응답 생성 중 오류 발생: {e}")
-            else:
-                st.info("💡 [기본 탈출 경로 안]")
-                st.markdown("""
-                - **1안 (지하주차장 연계)**: 인근 대형 쇼핑몰 B4 지하주차장 진입 후 CCTV 사각지대에서 2호 차량으로 스위치.
-                - **2안 (통행 제한 구역 활용)**: 일반 차량 출입이 제한된 호텔 VIP 전용 승하차장(Drop-off Zone)으로 즉시 진입.
-                - **3안 (경호팀 분산 유도)**: 경호 Alpha팀이 1차선에서 파파라치 시선을 분산시키는 동안 VIP 차량은 골목길 우회.
-                """)
-                
-    with tab2:
-        st.write("파파라치 추격 과정에서 일어난 소동에 대해 소속사의 공식 입장을 신속히 작성합니다.")
-        media_context = st.text_input("추가 상황 입력", value="과속 추적 중 파파라치 카메라 플래시로 인한 운전 방해")
-        
-        if st.button("📄 긴급 성명서 자동 작성"):
-            prompt_statement = f"연예인 {vip_name}의 소속사 명의로 공식 입장문을 작성해줘. 상황: 파파라치의 무리한 추격({media_context})으로 인해 아티스트의 안전이 심각하게 위협받았음. 과도한 사생활 침해에 대한 강력한 법적 대응 및 팬들에게 안심을 전하는 고품격 경고문을 300자 내외로 작성해줘."
-            
-            if ai_enabled:
-                with st.spinner("공식 입장문 작성 중..."):
-                    try:
-                        response = model.generate_content(prompt_statement)
-                        st.success("작성 완료!")
-                        st.text_area("공식 입장문 복사용", value=response.text, height=200)
-                    except Exception as e:
-                        st.error(f"성명서 생성 중 오류 발생: {e}")
-            else:
-                st.success("작성 완료! (기본 템플릿)")
-                template = f"안녕하세요, {vip_name} 소속사입니다.\n\n금일 발생한 무분별한 파파라치 추격 행위로 인해 아티스트의 신변 및 도로 교통 안전에 심각한 위협이 가해졌습니다. 당사는 아티스트의 사생활 보호와 안전 확보를 위해 위법 행위에 대하여 어떠한 합의 없이 강력한 법적 조치를 취할 예정입니다.\n\n걱정해 주신 팬 여러분께 감사드리며, 아티스트의 안전에 최선을 다하겠습니다."
-                st.text_area("공식 입장문 복사용", value=template, height=200)
-
-# -----------------------------------------------------------------------------
-# 6. 하단 실시간 경호 기록 로그 (Streamlit 기본 구성요소)
-# -----------------------------------------------------------------------------
-st.markdown("---")
-st.subheader("📋 실시간 경호 상황 로그 (Live Logs)")
-
-log_data = [
-    {"시간": "14:02:11", "내용": f"VIP [{vip_name}] 차량 이동 개시 (강남구 청담동 일대)", "상태": "정상"},
-    {"시간": "14:03:45", "내용": f"미식별 검은색 SUV 등 파파라치 차량 {paparazzi_count}대 포착", "상태": "경고"},
-    {"시간": "14:04:10", "내용": "경호팀 1차 차단선 구축 및 속도 조절", "상태": "대응중"},
-    {"시간": "14:05:00", "내용": "AI 최적 회피 경로 산출 완료 및 관제센터 전달", "상태": "완료"}
+# -----------------------------
+# 시뮬레이션 데이터
+# -----------------------------
+SCENARIOS = [
+    {
+        "status": "안정",
+        "risk": 22,
+        "risk_label": "낮음",
+        "location": "A 출입구 · 비공개 행사장",
+        "summary": "이동 동선이 확보되어 있고 경호팀이 대기 중입니다.",
+        "action": "현재 동선을 유지하고 출입구 주변 상황을 관찰하세요.",
+        "event": "경호팀이 이동 동선을 확인했습니다.",
+    },
+    {
+        "status": "주의",
+        "risk": 54,
+        "risk_label": "보통",
+        "location": "B 대기 구역 · 비공개 행사장",
+        "summary": "출입구 주변 취재 인원이 증가한 상황입니다.",
+        "action": "대체 출입구를 확인하고 현장 책임자와 이동 시점을 조율하세요.",
+        "event": "현장 인원 증가에 따라 동선 재확인이 필요합니다.",
+    },
+    {
+        "status": "경계",
+        "risk": 81,
+        "risk_label": "높음",
+        "location": "C 차량 승하차 구역",
+        "summary": "이동 경로가 혼잡하여 안전 확인이 필요한 상황입니다.",
+        "action": "이동을 잠시 보류하고 경호 책임자와 상황을 확인하세요.",
+        "event": "안전 확인 전까지 이동을 보류하도록 권고합니다.",
+    },
 ]
 
-st.dataframe(pd.DataFrame(log_data), use_container_width=True)
+if "scenario_index" not in st.session_state:
+    st.session_state.scenario_index = 0
+
+if "events" not in st.session_state:
+    st.session_state.events = [
+        {
+            "time": "14:02:11",
+            "level": "안내",
+            "message": "경호팀 사전 브리핑 완료",
+        },
+        {
+            "time": "14:04:26",
+            "level": "주의",
+            "message": "출입구 주변 인원 확인",
+        },
+        {
+            "time": "14:05:03",
+            "level": "안전",
+            "message": "대기 차량 확인 완료",
+        },
+    ]
+
+if "emergency" not in st.session_state:
+    st.session_state.emergency = False
+
+if "last_update" not in st.session_state:
+    st.session_state.last_update = datetime.now(KST)
+
+scenario = SCENARIOS[st.session_state.scenario_index]
+
+# -----------------------------
+# 사이드바
+# -----------------------------
+with st.sidebar:
+    st.markdown("## 🛡️ SHIELD")
+    st.caption("CELEBRITY PROTECTION SYSTEM")
+    st.divider()
+
+    st.markdown("### 작전 정보")
+    celebrity = st.text_input("보호 대상", "아티스트 A")
+    mission = st.selectbox(
+        "작전 유형",
+        ["행사장 이동", "공항 이동", "퇴근 동선", "비공개 일정"],
+    )
+    guards = st.selectbox(
+        "배치 경호 인원",
+        [2, 3, 4, 5, 6, 8],
+        index=2,
+    )
+    show_events = st.toggle("상황 로그 표시", value=True)
+
+    st.divider()
+    st.caption("시뮬레이션 모드 · 실제 센서와 연결되지 않음")
+
+# -----------------------------
+# 상단 헤더
+# -----------------------------
+now = datetime.now(KST)
+
+st.markdown(f"""
+<div class="hero">
+    <div class="eyebrow">SHIELD / PROTECTION OPERATIONS</div>
+    <h1>실시간 경호 상황 관제</h1>
+    <div class="muted">
+        {celebrity or "보호 대상 미지정"} · {mission}
+        · 경호 인원 {guards}명
+        · {now.strftime("%Y-%m-%d %H:%M:%S")} KST
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+# -----------------------------
+# 상태 카드
+# -----------------------------
+c1, c2, c3, c4 = st.columns(4)
+
+with c1:
+    st.markdown(f"""
+    <div class="metric">
+        <div class="metric-label">현재 경호 상태</div>
+        <div class="metric-value">{scenario["status"]}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with c2:
+    st.markdown(f"""
+    <div class="metric">
+        <div class="metric-label">시뮬레이션 위험도</div>
+        <div class="metric-value">{scenario["risk"]}/100</div>
+        <div class="muted">위험도: {scenario["risk_label"]}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with c3:
+    st.markdown(f"""
+    <div class="metric">
+        <div class="metric-label">배치 경호 인원</div>
+        <div class="metric-value">{guards}명</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with c4:
+    st.markdown(f"""
+    <div class="metric">
+        <div class="metric-label">마지막 업데이트</div>
+        <div class="metric-value" style="font-size:21px">
+            {st.session_state.last_update.strftime("%H:%M:%S")}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.write("")
+
+left, right = st.columns([1.15, 0.85], gap="large")
+
+# -----------------------------
+# 현장 상황 및 이동 동선
+# -----------------------------
+with left:
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    st.subheader("📍 현장 상황")
+    st.markdown(f"### {scenario['location']}")
+    st.write(scenario["summary"])
+
+    st.progress(
+        scenario["risk"] / 100,
+        text=f"위험도 참고 지표 · {scenario['risk']}/100",
+    )
+    st.caption("위험도는 시연을 위한 예시이며 실제 위험을 판정하지 않습니다.")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    st.subheader("🧭 이동 동선 체크")
+
+    route = [
+        ("1", "집결 지점", "경호팀 인원 확인"),
+        ("2", "보안 통로", "주변 혼잡도 확인"),
+        ("3", "전용 차량", "차량 확인 및 안전 승차"),
+        ("4", "안전 목적지", "도착 후 인원 확인"),
+    ]
+
+    for number, title, description in route:
+        st.markdown(
+            f"**{number}. {title}**  \n"
+            f"<span style='color:#98abc1'>{description}</span>",
+            unsafe_allow_html=True,
+        )
+        st.write("")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# -----------------------------
+# 경호팀 및 권장 대응
+# -----------------------------
+with right:
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    st.subheader("⚡ 권장 대응")
+    st.write(scenario["action"])
+
+    if scenario["risk"] >= 80:
+        st.error("경계 단계: 이동 전 안전 확인이 필요합니다.")
+    elif scenario["risk"] >= 50:
+        st.warning("주의 단계: 대체 동선을 검토하세요.")
+    else:
+        st.success("안정 단계: 현재 상황을 계속 관찰하세요.")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    st.subheader("👥 경호팀 상태")
+
+    team_status = [
+        ("팀장 / 무전", "연결"),
+        ("근접 경호", "대기"),
+        ("동선 확인", "확인 중" if scenario["risk"] >= 50 else "정상"),
+        ("차량 담당", "대기"),
+    ]
+
+    for role, status in team_status:
+        st.markdown(f"**{role}**")
+        st.caption(f"상태: {status}")
+        st.divider()
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# -----------------------------
+# 관제 버튼
+# -----------------------------
+st.subheader("🎛️ 관제 액션")
+
+b1, b2, b3 = st.columns(3)
+
+with b1:
+    if st.button("🔄 상황 업데이트", use_container_width=True):
+        st.session_state.scenario_index = (
+            st.session_state.scenario_index + 1
+        ) % len(SCENARIOS)
+
+        updated = SCENARIOS[st.session_state.scenario_index]
+        st.session_state.events.insert(
+            0,
+            {
+                "time": datetime.now(KST).strftime("%H:%M:%S"),
+                "level": updated["status"],
+                "message": updated["event"],
+            },
+        )
+        st.session_state.events = st.session_state.events[:10]
+        st.session_state.last_update = datetime.now(KST)
+        st.rerun()
+
+with b2:
+    if st.button("📝 상황 보고 기록", use_container_width=True):
+        st.session_state.events.insert(
+            0,
+            {
+                "time": datetime.now(KST).strftime("%H:%M:%S"),
+                "level": "기록",
+                "message": (
+                    f"{celebrity or '보호 대상 미지정'} · {mission} · "
+                    f"위험도 {scenario['risk']}/100 · 경호 인원 {guards}명"
+                ),
+            },
+        )
+        st.session_state.events = st.session_state.events[:10]
+        st.session_state.last_update = datetime.now(KST)
+        st.success("상황 보고가 이벤트 로그에 기록되었습니다.")
+
+with b3:
+    if st.button("🚨 비상 상황 선언", type="primary", use_container_width=True):
+        st.session_state.emergency = True
+        st.session_state.events.insert(
+            0,
+            {
+                "time": datetime.now(KST).strftime("%H:%M:%S"),
+                "level": "비상",
+                "message": "시연용 비상 상황이 선언되었습니다.",
+            },
+        )
+        st.session_state.events = st.session_state.events[:10]
+        st.session_state.last_update = datetime.now(KST)
+
+if st.session_state.emergency:
+    st.error(
+        "비상 상태 활성화 — 이 기능은 화면 내 시뮬레이션이며 "
+        "경호팀이나 긴급 구조기관에 연락하지 않습니다."
+    )
+    if st.button("비상 상태 해제"):
+        st.session_state.emergency = False
+        st.rerun()
+
+# -----------------------------
+# 이벤트 로그
+# -----------------------------
+st.divider()
+st.subheader("📋 최근 상황 이벤트")
+
+if show_events:
+    for event in st.session_state.events:
+        with st.container(border=True):
+            st.caption(
+                f"{event['time']} · {event['level']}"
+            )
+            st.write(event["message"])
+else:
+    st.info("상황 로그 표시가 꺼져 있습니다.")
+
+st.caption(
+    "SHIELD DEMO · 실제 GPS, 카메라 감지, 자동 추적, "
+    "외부 경호팀 통신 기능은 포함되어 있지 않습니다."
+)
