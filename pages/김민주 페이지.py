@@ -11,84 +11,141 @@ st.set_page_config(
 
 KST = ZoneInfo("Asia/Seoul")
 
-# -----------------------------
-# 디자인
-# -----------------------------
+# 밝은 테마 디자인
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap');
 
 .stApp {
-    background: #0b1018;
-    color: #edf4fc;
+    background-color: #F4F7FB;
+    color: #1F2937;
     font-family: 'Noto Sans KR', sans-serif;
 }
+
 .block-container {
     max-width: 1450px;
     padding-top: 2rem;
+    padding-bottom: 3rem;
 }
+
 section[data-testid="stSidebar"] {
-    background: #111b28;
+    background-color: #FFFFFF;
+    border-right: 1px solid #DCE3ED;
 }
+
+section[data-testid="stSidebar"] * {
+    color: #253247;
+}
+
 .hero {
-    background: linear-gradient(120deg, #192b43, #101925);
-    border: 1px solid #2a3b50;
+    background: linear-gradient(120deg, #FFFFFF, #E8F3FF);
+    border: 1px solid #D5E4F5;
     border-radius: 18px;
     padding: 25px;
     margin-bottom: 22px;
 }
+
 .hero h1 {
-    color: #f4f8ff;
+    color: #172B4D !important;
     font-size: 2.2rem;
+    font-weight: 800;
     margin: 8px 0;
 }
+
 .eyebrow {
-    color: #6fe4c2;
-    letter-spacing: 3px;
+    color: #087F70;
+    letter-spacing: 2px;
     font-size: 12px;
-    font-weight: bold;
+    font-weight: 800;
 }
+
 .muted {
-    color: #98abc1;
+    color: #53657C !important;
 }
+
 .metric {
-    background: #111b28;
-    border: 1px solid #29394d;
+    background: #FFFFFF;
+    border: 1px solid #DCE4EF;
     border-radius: 15px;
     padding: 18px;
     min-height: 115px;
+    box-shadow: 0 3px 12px rgba(30, 55, 90, 0.05);
 }
+
 .metric-label {
-    color: #9bacc0;
+    color: #53657C;
     font-size: 13px;
 }
+
 .metric-value {
     font-size: 28px;
     font-weight: 800;
     margin-top: 8px;
-    color: #f2f7fc;
+    color: #172B4D !important;
 }
+
 .panel {
-    background: #111b28;
-    border: 1px solid #29394d;
+    background: #FFFFFF;
+    color: #253247;
+    border: 1px solid #DCE4EF;
     border-radius: 15px;
     padding: 20px;
     margin: 10px 0;
+    box-shadow: 0 3px 12px rgba(30, 55, 90, 0.04);
 }
-.status-safe { color: #6fe4c2; font-weight: bold; }
-.status-warn { color: #ffd782; font-weight: bold; }
-.status-danger { color: #ff9292; font-weight: bold; }
+
+.panel h1, .panel h2, .panel h3,
+.panel p, .panel strong {
+    color: #253247 !important;
+}
+
+.stApp h1, .stApp h2, .stApp h3 {
+    color: #172B4D;
+}
+
+.stApp p, .stApp label,
+.stApp [data-testid="stMarkdownContainer"] {
+    color: #253247;
+}
+
 div.stButton > button {
     border-radius: 10px;
     min-height: 43px;
     font-weight: 700;
+    border: 1px solid #C9D6E6;
+    color: #253247;
+    background-color: #FFFFFF;
 }
+
+div.stButton > button:hover {
+    border-color: #6C91C2;
+    color: #172B4D;
+}
+
+div.stButton > button[kind="primary"] {
+    background-color: #D92D3A;
+    color: #FFFFFF;
+    border: none;
+}
+
+div.stButton > button[kind="primary"]:hover {
+    background-color: #B91F2C;
+    color: #FFFFFF;
+}
+
+div[data-testid="stProgressBar"] {
+    background-color: #E1E8F0;
+}
+
+div[data-testid="stAlert"] {
+    border-radius: 12px;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
-# -----------------------------
-# 시뮬레이션 데이터
-# -----------------------------
+
+# 상황 데이터
 SCENARIOS = [
     {
         "status": "안정",
@@ -119,6 +176,8 @@ SCENARIOS = [
     },
 ]
 
+
+# 세션 상태 초기화
 if "scenario_index" not in st.session_state:
     st.session_state.scenario_index = 0
 
@@ -149,33 +208,41 @@ if "last_update" not in st.session_state:
 
 scenario = SCENARIOS[st.session_state.scenario_index]
 
-# -----------------------------
+
 # 사이드바
-# -----------------------------
 with st.sidebar:
     st.markdown("## 🛡️ SHIELD")
     st.caption("CELEBRITY PROTECTION SYSTEM")
     st.divider()
 
     st.markdown("### 작전 정보")
-    celebrity = st.text_input("보호 대상", "아티스트 A")
+
+    celebrity = st.text_input(
+        "보호 대상",
+        value="아티스트 A",
+    )
+
     mission = st.selectbox(
         "작전 유형",
         ["행사장 이동", "공항 이동", "퇴근 동선", "비공개 일정"],
     )
+
     guards = st.selectbox(
         "배치 경호 인원",
         [2, 3, 4, 5, 6, 8],
         index=2,
     )
-    show_events = st.toggle("상황 로그 표시", value=True)
+
+    show_events = st.toggle(
+        "상황 로그 표시",
+        value=True,
+    )
 
     st.divider()
     st.caption("시뮬레이션 모드 · 실제 센서와 연결되지 않음")
 
-# -----------------------------
+
 # 상단 헤더
-# -----------------------------
 now = datetime.now(KST)
 
 st.markdown(f"""
@@ -190,9 +257,8 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# -----------------------------
-# 상태 카드
-# -----------------------------
+
+# 상단 상태 카드
 c1, c2, c3, c4 = st.columns(4)
 
 with c1:
@@ -230,83 +296,78 @@ with c4:
     </div>
     """, unsafe_allow_html=True)
 
+
 st.write("")
 
 left, right = st.columns([1.15, 0.85], gap="large")
 
-# -----------------------------
-# 현장 상황 및 이동 동선
-# -----------------------------
+
+# 왼쪽: 현장 상황과 이동 동선
 with left:
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
-    st.subheader("📍 현장 상황")
-    st.markdown(f"### {scenario['location']}")
-    st.write(scenario["summary"])
+    with st.container(border=True):
+        st.subheader("📍 현장 상황")
+        st.markdown(f"### {scenario['location']}")
+        st.write(scenario["summary"])
 
-    st.progress(
-        scenario["risk"] / 100,
-        text=f"위험도 참고 지표 · {scenario['risk']}/100",
-    )
-    st.caption("위험도는 시연을 위한 예시이며 실제 위험을 판정하지 않습니다.")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
-    st.subheader("🧭 이동 동선 체크")
-
-    route = [
-        ("1", "집결 지점", "경호팀 인원 확인"),
-        ("2", "보안 통로", "주변 혼잡도 확인"),
-        ("3", "전용 차량", "차량 확인 및 안전 승차"),
-        ("4", "안전 목적지", "도착 후 인원 확인"),
-    ]
-
-    for number, title, description in route:
-        st.markdown(
-            f"**{number}. {title}**  \n"
-            f"<span style='color:#98abc1'>{description}</span>",
-            unsafe_allow_html=True,
+        st.progress(
+            scenario["risk"] / 100,
+            text=f"위험도 참고 지표 · {scenario['risk']}/100",
         )
-        st.write("")
 
-    st.markdown("</div>", unsafe_allow_html=True)
+        st.caption(
+            "위험도는 시연용 예시이며 실제 위험을 판정하지 않습니다."
+        )
 
-# -----------------------------
-# 경호팀 및 권장 대응
-# -----------------------------
+    with st.container(border=True):
+        st.subheader("🧭 이동 동선 체크")
+
+        route = [
+            ("1", "집결 지점", "경호팀 인원 확인"),
+            ("2", "보안 통로", "주변 혼잡도 확인"),
+            ("3", "전용 차량", "차량 확인 및 안전 승차"),
+            ("4", "안전 목적지", "도착 후 인원 확인"),
+        ]
+
+        for number, title, description in route:
+            st.markdown(f"**{number}. {title}**")
+            st.caption(description)
+
+
+# 오른쪽: 대응 안내와 경호팀
 with right:
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
-    st.subheader("⚡ 권장 대응")
-    st.write(scenario["action"])
+    with st.container(border=True):
+        st.subheader("⚡ 권장 대응")
+        st.write(scenario["action"])
 
-    if scenario["risk"] >= 80:
-        st.error("경계 단계: 이동 전 안전 확인이 필요합니다.")
-    elif scenario["risk"] >= 50:
-        st.warning("주의 단계: 대체 동선을 검토하세요.")
-    else:
-        st.success("안정 단계: 현재 상황을 계속 관찰하세요.")
+        if scenario["risk"] >= 80:
+            st.error("경계 단계: 이동 전 안전 확인이 필요합니다.")
+        elif scenario["risk"] >= 50:
+            st.warning("주의 단계: 대체 동선을 검토하세요.")
+        else:
+            st.success("안정 단계: 현재 상황을 계속 관찰하세요.")
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    with st.container(border=True):
+        st.subheader("👥 경호팀 상태")
 
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
-    st.subheader("👥 경호팀 상태")
+        team_status = [
+            ("팀장 / 무전", "연결"),
+            ("근접 경호", "대기"),
+            (
+                "동선 확인",
+                "확인 중" if scenario["risk"] >= 50 else "정상",
+            ),
+            ("차량 담당", "대기"),
+        ]
 
-    team_status = [
-        ("팀장 / 무전", "연결"),
-        ("근접 경호", "대기"),
-        ("동선 확인", "확인 중" if scenario["risk"] >= 50 else "정상"),
-        ("차량 담당", "대기"),
-    ]
+        for role, status in team_status:
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                st.write(f"**{role}**")
+            with col2:
+                st.write(status)
 
-    for role, status in team_status:
-        st.markdown(f"**{role}**")
-        st.caption(f"상태: {status}")
-        st.divider()
 
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# -----------------------------
-# 관제 버튼
-# -----------------------------
+# 관제 액션
 st.subheader("🎛️ 관제 액션")
 
 b1, b2, b3 = st.columns(3)
@@ -318,6 +379,7 @@ with b1:
         ) % len(SCENARIOS)
 
         updated = SCENARIOS[st.session_state.scenario_index]
+
         st.session_state.events.insert(
             0,
             {
@@ -326,9 +388,11 @@ with b1:
                 "message": updated["event"],
             },
         )
+
         st.session_state.events = st.session_state.events[:10]
         st.session_state.last_update = datetime.now(KST)
         st.rerun()
+
 
 with b2:
     if st.button("📝 상황 보고 기록", use_container_width=True):
@@ -343,13 +407,21 @@ with b2:
                 ),
             },
         )
+
         st.session_state.events = st.session_state.events[:10]
         st.session_state.last_update = datetime.now(KST)
+
         st.success("상황 보고가 이벤트 로그에 기록되었습니다.")
 
+
 with b3:
-    if st.button("🚨 비상 상황 선언", type="primary", use_container_width=True):
+    if st.button(
+        "🚨 비상 상황 선언",
+        type="primary",
+        use_container_width=True,
+    ):
         st.session_state.emergency = True
+
         st.session_state.events.insert(
             0,
             {
@@ -358,33 +430,34 @@ with b3:
                 "message": "시연용 비상 상황이 선언되었습니다.",
             },
         )
+
         st.session_state.events = st.session_state.events[:10]
         st.session_state.last_update = datetime.now(KST)
 
+
 if st.session_state.emergency:
     st.error(
-        "비상 상태 활성화 — 이 기능은 화면 내 시뮬레이션이며 "
+        "비상 상태 활성화 — 이 기능은 시뮬레이션이며 "
         "경호팀이나 긴급 구조기관에 연락하지 않습니다."
     )
+
     if st.button("비상 상태 해제"):
         st.session_state.emergency = False
         st.rerun()
 
-# -----------------------------
-# 이벤트 로그
-# -----------------------------
+
+# 최근 상황 이벤트
 st.divider()
 st.subheader("📋 최근 상황 이벤트")
 
 if show_events:
     for event in st.session_state.events:
         with st.container(border=True):
-            st.caption(
-                f"{event['time']} · {event['level']}"
-            )
+            st.caption(f"{event['time']} · {event['level']}")
             st.write(event["message"])
 else:
     st.info("상황 로그 표시가 꺼져 있습니다.")
+
 
 st.caption(
     "SHIELD DEMO · 실제 GPS, 카메라 감지, 자동 추적, "
